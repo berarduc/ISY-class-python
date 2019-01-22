@@ -6,6 +6,7 @@ TNB
 Jan 2019
 
 V1.0 - basic websocket and rest functions for home ISY system
+V1.01 - class now accepts a list of filter items
 
 '''
 
@@ -19,25 +20,20 @@ except ImportError:
 
 class ISY:
 
-    def __init__(self,ISY_ADD, Auth_String, filter_item,callback_function):
+    def __init__(self,ISY_ADD, Auth_String, filterItemList,callback_function):
         print("\nInside ISY class init...")
         # defaults
         self.ISY_REST_URL = "http://"+ISY_ADD+"/rest"
         self.ISY_WS_URL = "ws://"+ISY_ADD+"/rest/subscribe"
         self.headers = {'Authorization':'Basic '+Auth_String}
         self.callback = callback_function
-        if filter_item == None:
+        # class accepts a list of filter items
+        self.filterItems = []
+        if len(filterItemList) == 0:
             self.enable_filter = False
-            self.filter = ""
         else:
             self.enable_filter = True
-            self.filter = filter_item
-        # set up REST interface parameters
-        
-
-
-
-            
+            self.filterItems = filterItemList
         # set up websocket connection and run forever as separate thread
         websocket.enableTrace(True)
         self.ws = websocket.WebSocketApp(self.ISY_WS_URL,
@@ -68,9 +64,10 @@ class ISY:
         #print("\n...in messageHandler...self = ",self, "... message = ",message,"\n")
         print("Message Received: ", message)
         if self.enable_filter == True:
-            if message.find(self.filter) != -1:
-                print("\n\n--> Found "+self.filter+" event! Calling out to callback function...")
-                self.callback(self)
+            for item in (self.filterItems):
+                if message.find(item) != -1:
+                    print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
+                    self.callback(self,message)
 
     def exit(self):
         self.ws.close()
