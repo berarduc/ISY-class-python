@@ -7,6 +7,8 @@ Jan 2019
 
 V1.0 - basic websocket and rest functions for home ISY system
 V1.01 - class now accepts a list of filter items
+V1.2 - Now this class accepts a list of filter items, and sends back via callback only 'eventInfo' data for devices or variables
+
 
 '''
 
@@ -21,7 +23,8 @@ except ImportError:
 class ISY:
 
     def __init__(self,ISY_ADD, Auth_String, filterItemList,callback_function):
-        print("\nInside ISY class init...")
+        self.debug_on = False
+        if self.debug_on: print("\nInside ISY class init...")
         # defaults
         self.ISY_REST_URL = "http://"+ISY_ADD+"/rest"
         self.ISY_WS_URL = "ws://"+ISY_ADD+"/rest/subscribe"
@@ -44,30 +47,75 @@ class ISY:
                                                    "Sec-WebSocket-Protocol: ISYSUB",
                                                    "Origin: com.universal-devices.websockets.isy"])
         self.ws.on_open = self.on_open
-        print("...before def run: run_forever()")
+        if self.debug_on: print("...before def run: run_forever()")
         def run(*args):
             self.ws.run_forever()
         thread.start_new_thread(run,())
-        print("...done w init...")
+        if self.debug_on: print("...done w init...")
                                          
 
     def on_open(self):
-        print("...inside on_open...")
+        if self.debug_on: print("...inside on_open...")
 
     def on_close(self):
-        print("\n...inside on_close...\n")
+        if self.debug_on: print("\n...inside on_close...\n")
 
     def on_error(self, error):
         print("\n\n---> WebSocket ERROR: ", error)
 
+
+    def isolateKeywordPayload(self,message, keyword):
+        # determine payload of eventInfo portion of websocket streaming data and return
+        if self.debug_on: print("...inside isolateEventInfoPayload...")
+        keyword_start = "<"+keyword+">"
+        keyword_end = "</"+keyword+">"
+        start = message.find(keyword_start)
+        end = message.find(keyword_end)
+        if self.debug_on: print("start = ",start, ", end = ",end)
+        if start != -1 and end != -1:
+                # ok both ends of xml are present
+                string1 = message.split(keyword_start)[1]
+                if self.debug_on: print("string1 = ", string1)
+                string2 = string1.split(keyword_end)[0]
+                if self.debug_on: print("string2 = ", string2)
+                if string2 == "":
+                    # payload is empty
+                    return -1
+                else:
+                    return string2
+        else: return -1
+
+    def filterEvents(self,event):
+        # filter out undesired event messages from stream
+        result = event.find("[")
+        if result == 0: return event
+        else: return -1
+
     def messageHandler(self, message):
         #print("\n...in messageHandler...self = ",self, "... message = ",message,"\n")
-        print("Message Received: ", message)
-        if self.enable_filter == True:
-            for item in (self.filterItems):
-                if message.find(item) != -1:
-                    print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
-                    self.callback(self,message)
+        node = ""
+        eventInfo = ""
+        control = ""
+        action = ""
+        if self.debug_on: print("Message Received: ", message)
+        node = self.isolateKeywordPayload(message, "node")
+        #print("Node Info from message: ", node)
+        eventInfo_interim = self.isolateKeywordPayload(message,"eventInfo")
+        if eventInfo_interim != -1:
+            eventInfo = self.filterEvents(eventInfo_interim)
+        else:
+            eventInfo = eventInfo_interim
+
+        # filter out all 'eventInfo' reports 
+        if eventInfo != -1:
+            if self.debug_on: print("Event: "+eventInfo)
+            if eventInfo != "":
+                if self.enable_filter == True:
+                    for item in (self.filterItems):
+                        if message.find(item) != -1:
+                            #print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
+                            if eventInfo != -1: 
+                                self.callback(self,item,eventInfo)
 
     def exit(self):
         self.ws.close()
@@ -75,14 +123,14 @@ class ISY:
     def SendDeviceCommand(self, deviceID, command):
         error = False
         targetURL = self.ISY_REST_URL+"/nodes/"+deviceID+"/cmd/"+command
-        print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
+        if self.debug_on: print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
         try:
             r = requests.get(targetURL,timeout = 0.5, headers=self.headers)
         except:
             print("\n\n--> REST ERROR - Send Device Command attempt FAILED.\n")
             error = True
             return error
-        print("...inside SendDeviceCommand, r = ", r, ", r.content = ", r.content)
+        if self.debug_on: print("...inside SendDeviceCommand, r = ", r, ", r.content = ", r.content)
         return error
 
     def GetDeviceStatus(self, deviceID):
@@ -105,6 +153,7 @@ class ISY:
         '''
         statusString = r.content
         return statusString, error
+
             
 
 
