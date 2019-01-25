@@ -38,7 +38,7 @@ class ISY:
             self.enable_filter = True
             self.filterItems = filterItemList
         # set up websocket connection and run forever as separate thread
-        websocket.enableTrace(True)
+        websocket.enableTrace(False)
         self.ws = websocket.WebSocketApp(self.ISY_WS_URL,
                                          on_message = self.messageHandler,
                                          on_error = self.on_error,
