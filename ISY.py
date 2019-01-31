@@ -117,13 +117,10 @@ class ISY:
                             if eventInfo != -1: 
                                 self.callback(self,item,eventInfo)
 
-    def exit(self):
-        self.ws.close()
-
     def SendDeviceCommand(self, deviceID, command):
         error = False
         targetURL = self.ISY_REST_URL+"/nodes/"+deviceID+"/cmd/"+command
-        if self.debug_on: print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
+        print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
         try:
             r = requests.get(targetURL,timeout = 0.5, headers=self.headers)
         except:
@@ -153,6 +150,19 @@ class ISY:
         '''
         statusString = r.content
         return statusString, error
+
+    def SetVariable(self,variable,value):
+        error = False
+        targetURL = self.ISY_REST_URL+"/vars/set/2/"+variable+"/"+value
+        if self.debug_on: print("...inside ISY.SetVariable...targetURL = ", targetURL,"\n")
+        try:
+            r=requests.get(targetURL,timeout=0.5,headers=self.headers)
+        except:
+            print("\n\n REST ERROR - Set Variable attempt FAILED.\n")
+            error = True
+            return error
+        if self.debug_on: print("...after set variable attempt, r = ",r,", r.content = ", r.content)
+        return error
 
             
 
