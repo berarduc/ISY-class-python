@@ -8,6 +8,7 @@ Jan 2019
 V1.0 - basic websocket and rest functions for home ISY system
 V1.01 - class now accepts a list of filter items
 V1.2 - Now this class accepts a list of filter items, and sends back via callback only 'eventInfo' data for devices or variables
+V1.3 - added SetVariable method
 
 
 '''
