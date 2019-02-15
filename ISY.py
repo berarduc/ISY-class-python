@@ -94,7 +94,7 @@ class ISY:
         else: return -1
 
     def messageHandler(self, message):
-        #print("\n...in messageHandler...self = ",self, "... message = ",message,"\n")
+        if self.debug_on: print("\n...in messageHandler...self = ",self, "... message = ",message,"\n")
         node = ""
         eventInfo = ""
         control = ""
@@ -115,7 +115,7 @@ class ISY:
                 if self.enable_filter == True:
                     for item in (self.filterItems):
                         if message.find(item) != -1:
-                            print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
+                            if self.debug_on: print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
                             if eventInfo != -1: 
                                 self.callback(self,item,eventInfo)
 
