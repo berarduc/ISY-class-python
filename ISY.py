@@ -10,12 +10,16 @@ V1.01 - class now accepts a list of filter items
 V1.2 - Now this class accepts a list of filter items, and sends back via callback only 'eventInfo' data for devices or variables
 V1.3 - added SetVariable method
 V1.4 - added GetVariable method to ISY class
-V1.401 moved to private github repo
+V1.5 - moved parseDeviceMessage into ISY class as internal helper function - refactored getDeviceStatus and callback to
+       return pre-processed action, value, misc directly from class so mainline program doesn't have to deal with internals
+       
+
 
 '''
 
 import websocket
 import requests
+from ISYutilities import *
 
 try:
     import thread
@@ -99,6 +103,8 @@ class ISY:
         eventInfo = ""
         control = ""
         action = ""
+        value = ""
+        misc = ""
         if self.debug_on: print("Message Received: ", message)
         node = self.isolateKeywordPayload(message, "node")
         #print("Node Info from message: ", node)
@@ -117,12 +123,16 @@ class ISY:
                         if message.find(item) != -1:
                             if self.debug_on: print("\n\n--> Found '"+item+"' filter item! Calling out to callback function...")
                             if eventInfo != -1: 
-                                self.callback(self,item,eventInfo)
+                                #self.callback(self,item,eventInfo)
+                                error, action, value, misc = self.parseDeviceMessage(eventInfo)
+                                if error != -1:
+                                    self.callback(self,item,action,value,misc)
+                                
 
     def SendDeviceCommand(self, deviceID, command):
         error = False
         targetURL = self.ISY_REST_URL+"/nodes/"+deviceID+"/cmd/"+command
-        print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
+        if self.debug_on: print("...inside SendDeviceCommand...targetURL = ",targetURL,"\n")
         try:
             r = requests.get(targetURL,timeout = 0.5, headers=self.headers)
         except:
@@ -135,6 +145,9 @@ class ISY:
     def GetDeviceStatus(self, deviceID):
         error = False
         statusString = ""
+        action = ""
+        value = ""
+        misc = ""
         try:
             r = requests.get(self.ISY_REST_URL+"/status/"+deviceID, timeout = 0.5, headers=self.headers)
         except:
@@ -150,8 +163,13 @@ class ISY:
                 error = True
                 return statusString, error
         '''
+        if self.debug_on: print("...inside ISY get device status...r.content: ", r.content)
         statusString = r.content
-        return statusString, error
+        status = self.isolateKeywordPayload(str(r.content),"properties")
+        if self.debug_on: print("...status before parse device message: ", status)
+        error, action, value, misc = self.parseDeviceMessage(status)
+        if self.debug_on: print("...after parse device message, error =  ",error, ", action = ", action,", value = ", value, ", misc = ", misc)
+        return error, value
 
     def SetVariable(self,variable,value):
         error = False
@@ -181,7 +199,79 @@ class ISY:
         if self.debug_on: print("...after get variable attempt, r = ",r,", r.content = ", r.content)
         return error,var
 
-            
+    def parseDeviceMessage(self,message):
+        # break apart message into separate 'action', 'value', and 'misc' sections
+        if self.debug_on: print("inside parseDeviceMessage...message = ", message)
+        # right now this code only looks for 'DON', 'DOF', 'VAR' and 'ST' messages, returns error if it finds something else
+        action = ""
+        value = ""
+        misc = ""
+        error = False
+        if message.find("DON") != -1:
+            # found DON
+            action = "DON"
+            message1 = message.split("DON")[1].lstrip()
+        elif message.find("DOF") != -1:
+            # found DOF
+            action = "DOF"
+            message1 = message.split("DOF")[1].lstrip()
+        elif message.find("ST") != -1:
+            # found ST
+            action = "ST"
+            message1 = message.split("ST")[1].lstrip()
+        elif message.find("VAR") != -1:
+            # found VAR
+            action = "VAR"
+            message1 = message.split("VAR")[1].lstrip()
+        elif message.find("ERR") != -1:
+            action = "ERROR"
+            print("\n\n--> ISY.parseDeviceMessage: ERROR MESSAGE received from Event Stream \n\n")
+            return error, action, value, misc
+        else:
+            print("\n\nError in parseDeviceMessage - can't find action\n\n")
+            error = True
+        if not error:
+            if self.debug_on: print("message1 = ",message1)
+            # first look for VAR format
+            if action == "VAR":
+                # found VAR
+                value = message1.split("]")[1].lstrip()
+                return error, action, value, misc
+            # if not VAR we need to find value two ways
+            remainder = message1.split(" ")
+            if self.debug_on: print("remainder = ", remainder)
+            index = 0
+            getDeviceStatus = False
+            # first determine if message is from getDeviceStatus REST call
+            for entry in remainder:
+                if entry.find("value") != -1:
+                    # get device status returns data like this
+                    getDeviceStatus = True
+                    valueList = entry.split("\"")
+                    if self.debug_on: print("entry = ", entry, ", valueList = ", valueList)
+                    value = valueList[1]
+                index += 1
+                if getDeviceStatus == True:
+                    break
+            if getDeviceStatus == True:
+                # now determine misc string and return
+                if self.debug_on: print("index = ", index, ", len(remainder) = ", len(remainder))
+                for val in range(index,len(remainder)-1):
+                    misc += remainder[val]
+                return 0, action, value, misc
+            # if you get here then it is a standard event so find value from event stream format    
+            if self.debug_on: print("remainder = /",remainder)
+            value = remainder[0]
+            if len(remainder) > 1:
+                misc = remainder[1]+remainder[2]
+                #print("...found 3 values: action = ",action,", value = ", value,", misc = ", misc)
+                return 0, action, value, misc
+            else:
+                #print("...found 2 values: action = ",action,"value = ", value)
+                return 0, action, value, misc
+        else:
+            # on error return -1
+            return -1,action, value, misc
 
 
 
