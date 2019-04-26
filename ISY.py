@@ -12,14 +12,14 @@ V1.3 - added SetVariable method
 V1.4 - added GetVariable method to ISY class
 V1.5 - moved parseDeviceMessage into ISY class as internal helper function - refactored getDeviceStatus and callback to
        return pre-processed action, value, misc directly from class so mainline program doesn't have to deal with internals
-       
+V1.51  cleaned up error print statements and comments
 
 
 '''
 
 import websocket
 import requests
-from ISYutilities import *
+#from ISYutilities import *
 
 try:
     import thread
@@ -171,14 +171,16 @@ class ISY:
         if self.debug_on: print("...after parse device message, error =  ",error, ", action = ", action,", value = ", value, ", misc = ", misc)
         return error, value
 
-    def SetVariable(self,variable,value):
+    def SetVariable(self,variable,value,typeId="2"):
+        # set ISY variable
+        # typeId given as : 1==integer variable, 2==state variable
         error = False
-        targetURL = self.ISY_REST_URL+"/vars/set/2/"+variable+"/"+value
+        targetURL = self.ISY_REST_URL+"/vars/set/"+typeId+"/"+variable+"/"+value
         if self.debug_on: print("...inside ISY.SetVariable...targetURL = ", targetURL,"\n")
         try:
             r=requests.get(targetURL,timeout=0.5,headers=self.headers)
         except:
-            print("\n\n REST ERROR - Set Variable attempt FAILED.\n")
+            print("\n\n--> isy.SetVariable REST ERROR - Set Variable attempt FAILED.\n")
             error = True
             return error
         if self.debug_on: print("...after set variable attempt, r = ",r,", r.content = ", r.content)
@@ -192,7 +194,7 @@ class ISY:
         try:
             r=requests.get(targetURL,timeout=0.5,headers=self.headers)
         except:
-            print("\n\n REST ERROR - Get Variable attempt FAILED.\n")
+            print("\n\n--> isy.GetVariable REST ERROR - Get Variable attempt FAILED.\n")
             error = True
             return error,var
         var = self.isolateKeywordPayload(str(r.content),"val")
