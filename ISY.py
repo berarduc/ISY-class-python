@@ -19,12 +19,14 @@ V1.51  cleaned up error print statements and comments
 
 import websocket
 import requests
+import threading
 #from ISYutilities import *
-
+'''
 try:
     import thread
 except ImportError:
     import _thread as thread
+'''
 
 
 class ISY:
@@ -57,7 +59,9 @@ class ISY:
         if self.debug_on: print("...before def run: run_forever()")
         def run(*args):
             self.ws.run_forever()
-        thread.start_new_thread(run,())
+        self.isyThread = threading.Thread(target=run,daemon=True)
+        self.isyThread.start()
+        #self.isyThread = thread.start_new_thread(run,())
         if self.debug_on: print("...done w init...")
 
     
@@ -178,7 +182,7 @@ class ISY:
         targetURL = self.ISY_REST_URL+"/vars/set/"+typeId+"/"+variable+"/"+value
         if self.debug_on: print("...inside ISY.SetVariable...targetURL = ", targetURL,"\n")
         try:
-            r=requests.get(targetURL,timeout=0.5,headers=self.headers)
+            r=requests.get(targetURL,timeout=1.5,headers=self.headers)
         except:
             print("\n\n--> isy.SetVariable REST ERROR - Set Variable attempt FAILED.\n")
             error = True
@@ -192,7 +196,7 @@ class ISY:
         targetURL = self.ISY_REST_URL+"/vars/get/2/"+variable
         if self.debug_on: print("...inside ISY.GetVariable...targetURL = ", targetURL,"\n")
         try:
-            r=requests.get(targetURL,timeout=0.5,headers=self.headers)
+            r=requests.get(targetURL,timeout=1.5,headers=self.headers)
         except:
             print("\n\n--> isy.GetVariable REST ERROR - Get Variable attempt FAILED.\n")
             error = True
@@ -274,8 +278,6 @@ class ISY:
         else:
             # on error return -1
             return -1,action, value, misc
-
-
 
 
         
